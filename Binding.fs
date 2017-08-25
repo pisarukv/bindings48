@@ -129,23 +129,27 @@ module Binding =
         member private this.OnSourceChangedHandler() =
             let source = ReflectionHelper.getPropertyValue this.SourceObject this.SourceProperty
             this.TargetProperty.SetValue(this.TargetObject, source)
+
+            sourceValue <- (source :?> 'S)
             ()
 
         member private this.OnTargetChangedHandler() =
             let target = ReflectionHelper.getPropertyValue this.TargetObject this.TargetProperty
             this.SourceProperty.SetValue(this.SourceObject, target)
+           
+            targetValue <- (target :?> 'T)
             ()
         
         member this.Unsubscribe() =
             let unsubscribe_source() = match sourceEventDelegate with
                                        | null -> Diagnostics.Debug.WriteLine "sourceEventDelegate is null, can be already unsubscribed."
                                        | _ -> 
-                                             ReflectionHelper.unsubscribeFromEvent this.SourceObject defaultSourceEventName sourceEventDelegate
+                                             ReflectionHelper.unsubscribeFromEvent this.SourceObject this.SourceEventName sourceEventDelegate
                                              sourceEventDelegate <- null
             let unsubscribe_target() = match targetEventDelegate with
                                        | null -> Diagnostics.Debug.WriteLine "targetEventDelegate is null, can be already unsubscribed."
                                        | _ -> 
-                                             ReflectionHelper.unsubscribeFromEvent this.TargetObject defaultTargetEventName targetEventDelegate
+                                             ReflectionHelper.unsubscribeFromEvent this.TargetObject this.TargetEventName targetEventDelegate
                                              targetEventDelegate <- null
             match this.Mode with
             | BindingMode.OneWay -> unsubscribe_source()
