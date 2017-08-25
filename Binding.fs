@@ -55,7 +55,7 @@ module ReflectionHelper =
         match path with 
         | [x] -> root, x
         | head::tail -> getPropertyObject <| getObjectFromProperty root head <| tail
-        | [] -> failwith "Something go wrong"
+        | [] -> failwith "Something went wrong"
 
     let rec getPropertyValue (propertyObject : obj) (property : PropertyInfo) = 
         getObjectFromProperty propertyObject property
@@ -106,6 +106,7 @@ module Binding =
                sourceProperty: PropertyInfo,
                targetProperty: PropertyInfo
                                     ) = 
+        
         let mutable defaultSourceEventName = "PropertyChanged"
         let mutable defaultTargetEventName = "PropertyChanged"
 
@@ -122,22 +123,27 @@ module Binding =
         member this.TargetObject = targetObject
         member this.SourceProperty = sourceProperty
         member this.TargetProperty = targetProperty
+        member val TargetEventName = defaultTargetEventName with get, set
+        member val SourceEventName = defaultSourceEventName with get, set
 
         member private this.OnSourceChangedHandler() =
-            let b = 1
+            let source = ReflectionHelper.getPropertyValue this.SourceObject this.SourceProperty
+            this.TargetProperty.SetValue(this.TargetObject, source)
             ()
 
         member private this.OnTargetChangedHandler() =
+            let target = ReflectionHelper.getPropertyValue this.TargetObject this.TargetProperty
+            this.SourceProperty.SetValue(this.SourceObject, target)
             ()
         
         member this.Unsubscribe() =
             let unsubscribe_source() = match sourceEventDelegate with
-                                       | null -> Diagnostics.Debug.WriteLine "sourceEventDelegate is null, can be already ubsubscribed."
+                                       | null -> Diagnostics.Debug.WriteLine "sourceEventDelegate is null, can be already unsubscribed."
                                        | _ -> 
                                              ReflectionHelper.unsubscribeFromEvent this.SourceObject defaultSourceEventName sourceEventDelegate
                                              sourceEventDelegate <- null
             let unsubscribe_target() = match targetEventDelegate with
-                                       | null -> Diagnostics.Debug.WriteLine "targetEventDelegate is null, can be already ubsubscribed."
+                                       | null -> Diagnostics.Debug.WriteLine "targetEventDelegate is null, can be already unsubscribed."
                                        | _ -> 
                                              ReflectionHelper.unsubscribeFromEvent this.TargetObject defaultTargetEventName targetEventDelegate
                                              targetEventDelegate <- null
@@ -150,11 +156,11 @@ module Binding =
           
         member this.Subscribe() =
             let subscribe_source() = match sourceEventDelegate with
-                                     | null -> sourceEventDelegate <- ReflectionHelper.subscribeToEvent this.SourceObject defaultSourceEventName (System.Action this.OnSourceChangedHandler)
+                                     | null -> sourceEventDelegate <- ReflectionHelper.subscribeToEvent this.SourceObject this.SourceEventName (System.Action this.OnSourceChangedHandler)
                                      | _ -> this.Unsubscribe ()
 
             let subscribe_target() = match targetEventDelegate with
-                                     | null -> targetEventDelegate <- ReflectionHelper.subscribeToEvent this.TargetObject defaultTargetEventName (System.Action this.OnTargetChangedHandler)
+                                     | null -> targetEventDelegate <- ReflectionHelper.subscribeToEvent this.TargetObject this.TargetEventName (System.Action this.OnTargetChangedHandler)
                                      | _ -> this.Unsubscribe ()
             match this.Mode with
             | BindingMode.OneWay -> subscribe_source ()
@@ -163,7 +169,7 @@ module Binding =
             | _ -> Diagnostics.Debug.WriteLine ("Unfamiliar BindingMode" + this.Mode.ToString())
             ()
 
-    let CreateBinding<'S,'T> (s: Expression<System.Func<'S>>) (t: Expression<System.Func<'T>>) (m: BindingMode) = 
+    let CreateBinding<'S,'T> (s: Expression<System.Func<'S>>) (t: Expression<System.Func<'T>>) (m: BindingMode) (sub: Boolean) = 
 
         let root, path_to_property = ReflectionHelper.getSourceObject s.Body
         let root2, path_to_property2 = ReflectionHelper.getSourceObject t.Body
@@ -184,8 +190,6 @@ module Binding =
                                targetProperty=targetProperty
                                )
 
-        instance.Subscribe()
-        instance.Unsubscribe()
-        instance.Unsubscribe()
-        instance.Subscribe()
+        if sub then instance.Subscribe()
+
         instance
